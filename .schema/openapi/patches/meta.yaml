@@ -1,0 +1,24 @@
+- op: replace
+  path: /info
+  value:
+    title: Ory Hydra API
+    description: |
+      Documentation for all of Ory Hydra's APIs.
+    version: >-
+      {{ getenv "CIRCLE_TAG" }}
+    license:
+      name: Apache 2.0
+    contact:
+      email: "hi@ory.sh"
+- op: replace
+  path: /tags
+  value:
+    - name: oauth2
+      description: OAuth 2.0
+    - name: oidc
+      description: OpenID Connect
+    - name: jwk
+      description: JSON Web Keys
+    - name: consent
+      description: OAuth 2.0 Consent
+

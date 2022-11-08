@@ -1,0 +1,20 @@
+linters:
+  enable:
+    - gosec
+    - errcheck
+    - gosimple
+    - bodyclose
+    - staticcheck
+    # Disabled due to Go 1.19 changes and Go-Swagger incompatibility
+    # https://github.com/ory/hydra/issues/3227
+    # - goimports
+  disable:
+    - ineffassign
+    - deadcode
+    - unused
+    - structcheck
+
+run:
+  skip-files:
+    - ".+_test.go"
+    - ".+_test_.+.go"
