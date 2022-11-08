@@ -219,6 +219,15 @@ func (p *Persister) CreateLoginRequest(ctx context.Context, req *consent.LoginRe
 	defer span.End()
 
 	f := flow.NewFlow(req)
+	if req.Skip {
+		fl := new(flow.Flow)
+		p.Connection(ctx).Select("context").
+			Where("subject = ? AND state = 6 AND context IS NOT NULL AND context != 'null'", req.Subject).
+			Order("requested_at DESC").
+			First(fl)
+
+		f.Context = fl.Context
+	}
 	return sqlcon.HandleError(p.CreateWithNetwork(ctx, f))
 }
 
@@ -310,11 +319,13 @@ func (p *Persister) HandleLoginRequest(ctx context.Context, challenge string, r 
 		if err != nil {
 			return sqlcon.HandleError(err)
 		}
+		if r.Context == nil {
+			r.Context = f.Context
+		}
 		err = f.HandleLoginRequest(r)
 		if err != nil {
 			return err
 		}
-
 		_, err = p.UpdateWithNetwork(ctx, f)
 		if err != nil {
 			return sqlcon.HandleError(err)
