@@ -1,32 +1,18 @@
-/*
- * Copyright © 2015-2018 Aeneas Rekkas <aeneas+oss@aeneas.io>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * @author		Aeneas Rekkas <aeneas+oss@aeneas.io>
- * @Copyright 	2017-2018 Aeneas Rekkas <aeneas+oss@aeneas.io>
- * @license 	Apache-2.0
- */
+// Copyright © 2022 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
 
 package consent
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/twmb/murmur3"
 
 	"github.com/ory/hydra/driver/config"
 
@@ -247,6 +233,7 @@ func (s *DefaultStrategy) forwardAuthenticationRequest(ctx context.Context, w ht
 	}
 
 	// Set the session
+	cl := sanitizeClientFromRequest(ar)
 	if err := s.r.ConsentManager().CreateLoginRequest(
 		r.Context(),
 		&LoginRequest{
@@ -257,7 +244,7 @@ func (s *DefaultStrategy) forwardAuthenticationRequest(ctx context.Context, w ht
 			RequestedScope:    []string(ar.GetRequestedScopes()),
 			RequestedAudience: []string(ar.GetRequestedAudience()),
 			Subject:           subject,
-			Client:            sanitizeClientFromRequest(ar),
+			Client:            cl,
 			RequestURL:        iu.String(),
 			AuthenticatedAt:   sqlxx.NullTime(authenticatedAt),
 			RequestedAt:       time.Now().Truncate(time.Second).UTC(),
@@ -274,7 +261,8 @@ func (s *DefaultStrategy) forwardAuthenticationRequest(ctx context.Context, w ht
 		return errorsx.WithStack(err)
 	}
 
-	if err := createCsrfSession(w, r, s.r.Config(), s.r.CookieStore(ctx), s.r.Config().CookieNameLoginCSRF(ctx), csrf); err != nil {
+	clientSpecificCookieNameLoginCSRF := fmt.Sprintf("%s_%d", s.r.Config().CookieNameLoginCSRF(ctx), murmur3.Sum32(cl.ID.Bytes()))
+	if err := createCsrfSession(w, r, s.r.Config(), s.r.CookieStore(ctx), clientSpecificCookieNameLoginCSRF, csrf, s.c.ConsentRequestMaxAge(ctx)); err != nil {
 		return errorsx.WithStack(err)
 	}
 
@@ -335,7 +323,8 @@ func (s *DefaultStrategy) verifyAuthentication(w http.ResponseWriter, r *http.Re
 		return nil, errorsx.WithStack(fosite.ErrRequestUnauthorized.WithHint("The login request has expired. Please try again."))
 	}
 
-	if err := validateCsrfSession(r, s.r.Config(), s.r.CookieStore(ctx), s.r.Config().CookieNameLoginCSRF(ctx), session.LoginRequest.CSRF); err != nil {
+	clientSpecificCookieNameLoginCSRF := fmt.Sprintf("%s_%d", s.r.Config().CookieNameLoginCSRF(ctx), murmur3.Sum32(session.LoginRequest.Client.ID.Bytes()))
+	if err := validateCsrfSession(r, s.r.Config(), s.r.CookieStore(ctx), clientSpecificCookieNameLoginCSRF, session.LoginRequest.CSRF); err != nil {
 		return nil, err
 	}
 
@@ -523,6 +512,7 @@ func (s *DefaultStrategy) forwardConsentRequest(ctx context.Context, w http.Resp
 	challenge := strings.Replace(uuid.New(), "-", "", -1)
 	csrf := strings.Replace(uuid.New(), "-", "", -1)
 
+	cl := sanitizeClientFromRequest(ar)
 	if err := s.r.ConsentManager().CreateConsentRequest(
 		r.Context(),
 		&OAuth2ConsentRequest{
@@ -535,7 +525,7 @@ func (s *DefaultStrategy) forwardConsentRequest(ctx context.Context, w http.Resp
 			RequestedScope:         []string(ar.GetRequestedScopes()),
 			RequestedAudience:      []string(ar.GetRequestedAudience()),
 			Subject:                as.Subject,
-			Client:                 sanitizeClientFromRequest(ar),
+			Client:                 cl,
 			RequestURL:             as.LoginRequest.RequestURL,
 			AuthenticatedAt:        as.AuthenticatedAt,
 			RequestedAt:            as.RequestedAt,
@@ -549,7 +539,8 @@ func (s *DefaultStrategy) forwardConsentRequest(ctx context.Context, w http.Resp
 		return errorsx.WithStack(err)
 	}
 
-	if err := createCsrfSession(w, r, s.r.Config(), s.r.CookieStore(ctx), s.r.Config().CookieNameConsentCSRF(ctx), csrf); err != nil {
+	clientSpecificCookieNameConsentCSRF := fmt.Sprintf("%s_%d", s.r.Config().CookieNameConsentCSRF(ctx), murmur3.Sum32(cl.ID.Bytes()))
+	if err := createCsrfSession(w, r, s.r.Config(), s.r.CookieStore(ctx), clientSpecificCookieNameConsentCSRF, csrf, s.c.ConsentRequestMaxAge(ctx)); err != nil {
 		return errorsx.WithStack(err)
 	}
 
@@ -584,7 +575,8 @@ func (s *DefaultStrategy) verifyConsent(ctx context.Context, w http.ResponseWrit
 		return nil, errorsx.WithStack(fosite.ErrServerError.WithHint("The authenticatedAt value was not set."))
 	}
 
-	if err := validateCsrfSession(r, s.r.Config(), s.r.CookieStore(ctx), s.r.Config().CookieNameConsentCSRF(ctx), session.ConsentRequest.CSRF); err != nil {
+	clientSpecificCookieNameConsentCSRF := fmt.Sprintf("%s_%d", s.r.Config().CookieNameConsentCSRF(ctx), murmur3.Sum32(session.ConsentRequest.Client.ID.Bytes()))
+	if err := validateCsrfSession(r, s.r.Config(), s.r.CookieStore(ctx), clientSpecificCookieNameConsentCSRF, session.ConsentRequest.CSRF); err != nil {
 		return nil, err
 	}
 
