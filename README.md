@@ -30,7 +30,7 @@ password reset flow), but connects to your existing identity provider through a
 [login and consent app](https://www.ory.sh/docs/hydra/oauth2#authenticating-users-and-requesting-consent).
 Implementing the login and consent app in a different language is easy, and
 exemplary consent apps ([Node](https://github.com/ory/hydra-login-consent-node))
-and [SDKs](https://www.ory.sh/docs/hydra/sdk/) for common languages are
+and [SDKs](https://www.ory.sh/docs/kratos/sdk/index) for common languages are
 provided.
 
 Ory Hydra can use [Ory Kratos](https://github.com/ory/kratos) as its identity
@@ -88,9 +88,9 @@ Ory refreshes and OpenID Connect ID token,
 ```shell
 ory create oauth2-client --project $project_id \
     --name "Authorize Code with OpenID Connect Demo" \
-    --grant-type authorization_code \
+    --grant-type authorization_code,refresh_token \
     --response-type code \
-    --redirect-uri ttp://127.0.0.1:4446/callback
+    --redirect-uri http://127.0.0.1:4446/callback
 code_client_id="{set to client id from output}"
 code_client_secret="{set to client secret from output}"
 
